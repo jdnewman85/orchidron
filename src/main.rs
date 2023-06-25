@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::{thread::sleep, time::Duration};
 
+use libcontainer::container::Container;
 use libcontainer::container::{ContainerStatus, builder::ContainerBuilder};
 
 use libcontainer::syscall::syscall::create_syscall;
@@ -14,7 +15,12 @@ use nix::{
     unistd::Pid,
 };
 
-fn main() {
+enum EndOp {
+    DumbWait,
+    HandleForeground,
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
     println!("Hello containers!");
     let sc = create_syscall();
 
@@ -31,19 +37,26 @@ fn main() {
     dbg!(c.systemd());
     c.start().unwrap();
 
-    /*
-    while c.status().eq(&ContainerStatus::Running) {
-        println!("Container status: {}", c.status());
-        sleep(Duration::from_secs(1));
-        c.refresh_status().unwrap();
+    let end_op = EndOp::DumbWait;
+    match end_op {
+        EndOp::DumbWait => wait_while_running(c)?,
+        EndOp::HandleForeground => {
+            let pid = c.pid().unwrap();
+            handle_foreground(pid)?;
+        },
     }
-    */
 
-    /*
-    let pid = c.pid().unwrap();
-    let r = handle_foreground(pid).unwrap();
-    println!("Result: {r}");
-    */
+    Ok(())
+
+}
+
+fn wait_while_running(mut container: Container) -> Result<(), Box<dyn Error>> {
+    while container.status().eq(&ContainerStatus::Running) {
+        println!("Container status: {}", container.status());
+        sleep(Duration::from_secs(1));
+        container.refresh_status()?;
+    }
+    Ok(())
 }
 
 fn handle_foreground(init_pid: Pid) -> Result<i32, Box<dyn Error>> {
@@ -93,7 +106,7 @@ fn handle_foreground(init_pid: Pid) -> Result<i32, Box<dyn Error>> {
             }
             signal => {
                 // There is nothing we can do if we fail to forward the signal.
-                println!("Moogles {signal}");
+                println!("Unhandled signal: {signal}");
             }
         }
     }
