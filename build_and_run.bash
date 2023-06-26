@@ -58,8 +58,12 @@ ${sudo+"${sudo}"} docker export \
 printf "DEBUG: rootless_flag: '%s'\n" ${rootless_flag:+"${rootless_flag}"}
 (cd "${bundle_path}" && youki spec ${rootless_flag:+"${rootless_flag}"})
 
-printf "TODO: !!! Modify(gen) config automatically\n"
-"${EDITOR}" "${bundle_path}/config.json"
+#TODO Generate config
+jq '.process.args = $command' \
+  --argjson command '["echo", "w00tness"]' \
+  "${bundle_path}/config.json" \
+  >> "${bundle_path}/config.json.tmp"
+mv "${bundle_path}/config.json.tmp" "${bundle_path}/config.json"
 
 #Build
 #TODO release support

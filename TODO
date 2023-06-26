@@ -16,9 +16,9 @@
   - [ ] Disk
 - [ ] Setting up roofs without docker
   - [ ] Something that replicates dockerfile features?
-- [ ] Use tmpfs for state
+- [o] Use tmpfs for state
   - [ ] Size limit
   - [ ] UID and GID
   - [ ] rootfs also?
-  - [ ] via bash
+  - [X] via bash
           https://www.baeldung.com/linux/files-ram
