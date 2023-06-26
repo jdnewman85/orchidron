@@ -1,0 +1,18 @@
+- [X] Run a container via youki as library
+- [ ] Get rootless to work
+- [ ] Add self to docker group in the interm?
+        https://www.tutorialspoint.com/running-docker-container-as-a-non-root-user
+- [o] Setup build script
+- [ ] Console
+- [ ] Tennant container setups
+- [ ] Sockets
+- [ ] Limits
+  - [ ] CPU
+  - [ ] Memory
+  - [ ] Disk
+- [ ] Setting up roofs without docker
+  - [ ] Something that replicates dockerfile features?
+- [ ] Use tmpfs for state
+  - [ ] rootfs also?
+  - [ ] via bash
+          https://www.baeldung.com/linux/files-ram

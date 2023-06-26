@@ -2,7 +2,7 @@ use std::error::Error;
 use std::{thread::sleep, time::Duration};
 
 use libcontainer::container::Container;
-use libcontainer::container::{ContainerStatus, builder::ContainerBuilder};
+use libcontainer::container::{builder::ContainerBuilder, ContainerStatus};
 
 use libcontainer::syscall::syscall::create_syscall;
 
@@ -22,32 +22,31 @@ enum EndOp {
 
 fn main() -> Result<(), Box<dyn Error>> {
     println!("Hello containers!");
-    let sc = create_syscall();
+    let syscall = create_syscall();
 
-    let c_builder = ContainerBuilder::new(
+    let container_builder = ContainerBuilder::new(
         "/home/sci/projects/rust/orchidron/container_id".to_owned(),
-        sc.as_ref(),
+        syscall.as_ref(),
     )
-        .with_root_path("./state").unwrap()
-        .as_init("./container")
-        .with_detach(false)
-        .with_systemd(false)
-    ;
-    let mut c = c_builder.build().unwrap();
-    dbg!(c.systemd());
-    c.start().unwrap();
+    .with_root_path("./state")?
+    .as_init("./container")
+    .with_detach(false)
+    .with_systemd(false);
+    let mut container = container_builder.build()?;
+    dbg!(container.systemd());
+    container.start()?;
 
-    let end_op = EndOp::DumbWait;
+    //let end_op = EndOp::DumbWait;
+    let end_op = EndOp::HandleForeground;
     match end_op {
-        EndOp::DumbWait => wait_while_running(c)?,
+        EndOp::DumbWait => wait_while_running(container)?,
         EndOp::HandleForeground => {
-            let pid = c.pid().unwrap();
+            let pid = container.pid().ok_or("No PID for container: {container}")?;
             handle_foreground(pid)?;
-        },
+        }
     }
 
     Ok(())
-
 }
 
 fn wait_while_running(mut container: Container) -> Result<(), Box<dyn Error>> {
@@ -59,16 +58,16 @@ fn wait_while_running(mut container: Container) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+// We must act as subreaper under some circumstances
+// From youji: https://github.com/containers/youki/blob/dfe6ee80bc780449fffcf22ecf6618c7c30791ae/crates/youki/src/commands/run.rs#L58
+// Runc's reasoning: https://github.com/opencontainers/runc/blob/main/docs/terminals.md#detached
 fn handle_foreground(init_pid: Pid) -> Result<i32, Box<dyn Error>> {
     // We mask all signals here and forward most of the signals to the container
     // init process.
     let signal_set = SigSet::all();
-    signal_set
-        .thread_block()?;
+    signal_set.thread_block()?;
     loop {
-        match signal_set
-            .wait()?
-        {
+        match signal_set.wait()? {
             signal::SIGCHLD => {
                 // Reap all child until either container init process exits or
                 // no more child to be reaped. Once the container init process
