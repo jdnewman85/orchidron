@@ -4,10 +4,14 @@ set -euo pipefail
 app_bin="orchidron"
 as_root_flag="--as-root"
 
-bundle_path="./container"
-rootfs_name="rootfs"
+working_dir="${PWD}"
 
-cleanup=("${app_bin}" "state" "container_id" "${bundle_path}")
+tmpfs_path="${working_dir}/tmpfs"
+bundle_path="${tmpfs_path}/bundle"
+rootfs_path="${bundle_path}/rootfs"
+#container_state_path="${tmpfs_path}/state"
+
+cleanup_targets=("${working_dir}/${app_bin}" "${tmpfs_path}")
 
 function usage() {
   #TODO TEMP - Only support as-root atm
@@ -29,21 +33,33 @@ sudo="${first_arg/${as_root_flag}/sudo}"
 rootless_flag="--rootless"
 [ -n "${first_arg}" ] && rootless_flag=""
 
+#Cleanup
+#TODO --no-cleanup flag
+function cleanup() {
+  ${sudo+"${sudo}"} umount "${tmpfs_path}" || true
+  ${sudo+"${sudo}"} rm -r "${cleanup_targets[@]}"
+}
+trap cleanup EXIT
+
 #Setup container environment
-mkdir -p "${bundle_path}/${rootfs_name}" && cd "${bundle_path}"
+
+#tmpfs for state
+mkdir "${tmpfs_path}"
+${sudo+"${sudo}"} mount tmpfs -t tmpfs "${tmpfs_path}"
+mkdir "${bundle_path}" "${rootfs_path}"
+
+#Image
 #TODO Setup without docker
 ${sudo+"${sudo}"} docker export \
   "$(${sudo+"${sudo}"} docker create busybox)" |
-  tar -C "${rootfs_name}" -xf -
+  tar -C "${rootfs_path}" -xf -
 
 #TODO Create spec without youki
 printf "DEBUG: rootless_flag: '%s'\n" ${rootless_flag:+"${rootless_flag}"}
-youki spec ${rootless_flag:+"${rootless_flag}"}
+(cd "${bundle_path}" && youki spec ${rootless_flag:+"${rootless_flag}"})
 
 printf "TODO: !!! Modify(gen) config automatically\n"
-"${EDITOR}" "./config.json"
-
-cd ..
+"${EDITOR}" "${bundle_path}/config.json"
 
 #Build
 #TODO release support
@@ -53,6 +69,3 @@ mv "./target/debug/${app_bin}" . || true
 #Run
 ${sudo+"${sudo}"} ./${app_bin}
 
-#Cleanup
-#TODO --no-cleanup flag
-${sudo+"${sudo}"} rm -fr "${cleanup[@]}"

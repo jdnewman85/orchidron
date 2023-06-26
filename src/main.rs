@@ -25,24 +25,24 @@ fn main() -> Result<(), Box<dyn Error>> {
     let syscall = create_syscall();
 
     let container_builder = ContainerBuilder::new(
-        "/home/sci/projects/rust/orchidron/container_id".to_owned(),
+        "/home/sci/projects/rust/orchidron/tmpfs/state".to_owned(),
         syscall.as_ref(),
     )
-    .with_root_path("./state")?
-    .as_init("./container")
+//    .with_root_path("/home/sci/projects/rust/orchidron/tmpfs/state_root").unwrap()
+    .as_init("/home/sci/projects/rust/orchidron/tmpfs/bundle")
     .with_detach(false)
     .with_systemd(false);
-    let mut container = container_builder.build()?;
+    let mut container = container_builder.build().unwrap();
     dbg!(container.systemd());
-    container.start()?;
+    container.start().unwrap();
 
     //let end_op = EndOp::DumbWait;
     let end_op = EndOp::HandleForeground;
     match end_op {
-        EndOp::DumbWait => wait_while_running(container)?,
+        EndOp::DumbWait => wait_while_running(container).unwrap(),
         EndOp::HandleForeground => {
-            let pid = container.pid().ok_or("No PID for container: {container}")?;
-            handle_foreground(pid)?;
+            let pid = container.pid().ok_or("No PID for container: {container}").unwrap();
+            handle_foreground(pid).unwrap();
         }
     }
 
@@ -53,7 +53,7 @@ fn wait_while_running(mut container: Container) -> Result<(), Box<dyn Error>> {
     while container.status().eq(&ContainerStatus::Running) {
         println!("Container status: {}", container.status());
         sleep(Duration::from_secs(1));
-        container.refresh_status()?;
+        container.refresh_status().unwrap();
     }
     Ok(())
 }
@@ -65,15 +65,15 @@ fn handle_foreground(init_pid: Pid) -> Result<i32, Box<dyn Error>> {
     // We mask all signals here and forward most of the signals to the container
     // init process.
     let signal_set = SigSet::all();
-    signal_set.thread_block()?;
+    signal_set.thread_block().unwrap();
     loop {
-        match signal_set.wait()? {
+        match signal_set.wait().unwrap() {
             signal::SIGCHLD => {
                 // Reap all child until either container init process exits or
                 // no more child to be reaped. Once the container init process
                 // exits we can then return.
                 loop {
-                    match waitpid(None, Some(WaitPidFlag::WNOHANG))? {
+                    match waitpid(None, Some(WaitPidFlag::WNOHANG)).unwrap() {
                         WaitStatus::Exited(pid, status) => {
                             if pid.eq(&init_pid) {
                                 return Ok(status);
