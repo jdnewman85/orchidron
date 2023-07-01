@@ -2,7 +2,10 @@
 set -euo pipefail
 
 app_bin="orchidron"
-as_root_flag="--as-root"
+rootless_flag="r"
+skip_clean_flag="c"
+
+youki_rootless_flag="--rootless"
 
 working_dir="${PWD}"
 
@@ -14,24 +17,26 @@ rootfs_path="${bundle_path}/rootfs"
 cleanup_targets=("${working_dir}/${app_bin}" "${tmpfs_path}")
 
 function usage() {
-  #TODO TEMP - Only support as-root atm
-  #printf "Usage: %s [%s]\n" "$0" "${as_root_flag}"
-  printf "Usage: %s %s\n" "$0" "${as_root_flag}"
+  printf "Usage: %s [-%s] [-%s]\n" "$0" \
+    "${rootless_flag}" \
+    "${skip_clean_flag}"
   exit 1
 }
 
-first_arg=${1-}
+rootless=
+skip_clean=
 
-if [ "$#" -gt 1 ]; then usage; fi
-if [ "$#" -eq 1 ] && [ "${first_arg}" != "$as_root_flag" ]; then usage; fi
+while getopts "rch" arg; do
+  case "${arg}" in
+    r) rootless=true;;
+    c) skip_clean=true;;
+    h | *) usage;;
+  esac
+done
 
-#TODO TEMP - Only support as-root atm
-if [ "${first_arg}" != "$as_root_flag" ]; then usage; fi
-
-# If as_root, use sudo
-sudo="${first_arg/${as_root_flag}/sudo}"
-rootless_flag="--rootless"
-[ -n "${first_arg}" ] && rootless_flag=""
+# If not rootless, use sudo
+sudo=
+! [ "${rootless}" ] && sudo="sudo"
 
 #Cleanup
 #TODO --no-cleanup flag
@@ -39,7 +44,7 @@ function cleanup() {
   ${sudo+"${sudo}"} umount "${tmpfs_path}" || true
   ${sudo+"${sudo}"} rm -r "${cleanup_targets[@]}"
 }
-trap cleanup EXIT
+! [ ${skip_clean} ] && trap cleanup EXIT
 
 #Setup container environment
 
@@ -55,12 +60,11 @@ ${sudo+"${sudo}"} docker export \
   tar -C "${rootfs_path}" -xf -
 
 #TODO Create spec without youki
-printf "DEBUG: rootless_flag: '%s'\n" ${rootless_flag:+"${rootless_flag}"}
-(cd "${bundle_path}" && youki spec ${rootless_flag:+"${rootless_flag}"})
+(cd "${bundle_path}" && youki spec ${rootless:+"${youki_rootless_flag}"})
 
 #TODO Generate config
 jq '.process.args = $command' \
-  --argjson command '["echo", "w00tness"]' \
+  --argjson command '["sh"]' \
   "${bundle_path}/config.json" \
   >> "${bundle_path}/config.json.tmp"
 mv "${bundle_path}/config.json.tmp" "${bundle_path}/config.json"
