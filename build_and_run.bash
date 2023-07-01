@@ -3,7 +3,9 @@ set -euo pipefail
 
 app_bin="orchidron"
 rootless_flag="r"
+rootless_description="Run rootless and without sudo (currently doesn't work)"
 skip_clean_flag="c"
+skip_clean_description="Skip cleanup of tmpfs"
 
 youki_rootless_flag="--rootless"
 
@@ -16,10 +18,13 @@ rootfs_path="${bundle_path}/rootfs"
 
 cleanup_targets=("${working_dir}/${app_bin}" "${tmpfs_path}")
 
+#TODO Array of flags/descriptions?
 function usage() {
-  printf "Usage: %s [-%s] [-%s]\n" "$0" \
-    "${rootless_flag}" \
-    "${skip_clean_flag}"
+  cat << EOF
+Usage: $0 [-${rootless_flag}] [-${skip_clean_flag}]
+	-${rootless_flag}  ${rootless_description}
+	-${skip_clean_flag}  ${skip_clean_description}
+EOF
   exit 1
 }
 
@@ -36,7 +41,7 @@ done
 
 # If not rootless, use sudo
 sudo=
-! [ "${rootless}" ] && sudo="sudo"
+[ ! "${rootless}" ] && sudo="sudo"
 
 #Cleanup
 #TODO --no-cleanup flag
@@ -44,7 +49,7 @@ function cleanup() {
   ${sudo+"${sudo}"} umount "${tmpfs_path}" || true
   ${sudo+"${sudo}"} rm -r "${cleanup_targets[@]}"
 }
-! [ ${skip_clean} ] && trap cleanup EXIT
+[ ! ${skip_clean} ] && trap cleanup EXIT
 
 #Setup container environment
 
@@ -63,16 +68,18 @@ ${sudo+"${sudo}"} docker export \
 (cd "${bundle_path}" && youki spec ${rootless:+"${youki_rootless_flag}"})
 
 #TODO Generate config
+#TODO Use better temp filename
+config_path="${bundle_path}/config.json"
 jq '.process.args = $command' \
   --argjson command '["sh"]' \
-  "${bundle_path}/config.json" \
-  >> "${bundle_path}/config.json.tmp"
-mv "${bundle_path}/config.json.tmp" "${bundle_path}/config.json"
+  "${config_path}" \
+  >> "${config_path}.tmp"
+mv "${config_path}.tmp" "${config_path}"
 
 #Build
 #TODO release support
 cargo build
-mv "./target/debug/${app_bin}" . || true
+mv "./target/debug/${app_bin}" .
 
 #Run
 ${sudo+"${sudo}"} ./${app_bin}

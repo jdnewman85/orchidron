@@ -1,5 +1,7 @@
+use std::{thread, time};
+use std::time::Duration;
 use std::error::Error;
-use std::{thread::sleep, time::Duration};
+use std::thread::sleep;
 
 use libcontainer::container::Container;
 use libcontainer::container::{builder::ContainerBuilder, ContainerStatus};
@@ -18,33 +20,43 @@ use nix::{
 enum EndOp {
     DumbWait,
     HandleForeground,
+    DropTest,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     println!("Hello containers!");
     let syscall = create_syscall();
 
-    let container_builder = ContainerBuilder::new(
-        "/home/sci/projects/rust/orchidron/tmpfs/state".to_owned(),
-        syscall.as_ref(),
-    )
-//    .with_root_path("/home/sci/projects/rust/orchidron/tmpfs/state_root").unwrap()
-    .as_init("/home/sci/projects/rust/orchidron/tmpfs/bundle")
-    .with_detach(false)
-    .with_systemd(false);
-    let mut container = container_builder.build().unwrap();
-    dbg!(container.systemd());
-    container.start().unwrap();
+    {
+        let container_builder = ContainerBuilder::new(
+            "/home/sci/projects/rust/orchidron/tmpfs/state".to_owned(),
+            syscall.as_ref(),
+        )
+    //    .with_root_path("/home/sci/projects/rust/orchidron/tmpfs/state_root").unwrap()
+        .as_init("/home/sci/projects/rust/orchidron/tmpfs/bundle")
+        .with_detach(true)
+        .with_systemd(false)
+        ;
+        let mut container = container_builder.build().unwrap();
+        dbg!(container.systemd());
+        container.start().unwrap();
 
-    //let end_op = EndOp::DumbWait;
-    let end_op = EndOp::HandleForeground;
-    match end_op {
-        EndOp::DumbWait => wait_while_running(container).unwrap(),
-        EndOp::HandleForeground => {
-            let pid = container.pid().ok_or("No PID for container: {container}").unwrap();
-            handle_foreground(pid).unwrap();
+        let end_op = EndOp::DumbWait;
+        //let end_op = EndOp::HandleForeground;
+        //let end_op = EndOp::DropTest;
+        match end_op {
+            EndOp::DumbWait => wait_while_running(container).unwrap(),
+            EndOp::HandleForeground => {
+                let pid = container.pid().ok_or("No PID for container?").unwrap();
+                handle_foreground(pid).unwrap();
+            }
+            EndOp::DropTest => { }
         }
     }
+
+    let sleep_seconds = 5;
+    println!("Should be dropped, sleeping {sleep_seconds}");
+    thread::sleep(time::Duration::from_secs(sleep_seconds));
 
     Ok(())
 }
