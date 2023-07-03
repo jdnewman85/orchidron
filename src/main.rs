@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let sleep_seconds = 5;
+    let sleep_seconds = 1;
     println!("Should be dropped, sleeping {sleep_seconds}");
     thread::sleep(time::Duration::from_secs(sleep_seconds));
 
